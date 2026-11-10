@@ -96,9 +96,10 @@ async function buildCtx(req: NextRequest, area: 'app' | 'admin', route: string):
       } else account.logout();
     }
   }
-  if (!ctx.S.theme) {
-    if (ctx.isLoggedIn && ctx.S.user?.settings?.theme) { ctx.S.theme = ctx.S.user.settings.theme; ctx.S.themeDefault = ctx.S.user.settings.theme_default ?? 1; }
-    else { ctx.S.theme = 'light'; ctx.S.themeDefault = 1; }
+  // The site is always shown in the light (day) theme: ignore the saved preference and the device's dark mode.
+  // themeDefault = 0 marks the theme as user-defined, so the front end does not switch to dark with the operating system.
+  if (ctx.S.theme !== 'light' || ctx.S.themeDefault !== 0) {
+    ctx.S.theme = 'light'; ctx.S.themeDefault = 0;
     ctx.session.touch();
   }
   if (ctx.isLoggedIn) ctx.settings.location = ctx.S.locationOverride ?? ctx.S.user.location;
