@@ -1,5 +1,5 @@
 import path from 'path';
-import fs from 'fs/promises';
+import { putFile, uniqueName } from '@/lib/storage';
 import { Ctx, Page, exit, jsonExit } from '@/lib/ctx';
 import { jobInterviewStatusLegend } from '@/lib/config';
 import { date, strtotime } from '@/lib/php';
@@ -22,11 +22,8 @@ async function handleDocUpload(file: UploadedFile | undefined, location: string)
   const parts = safe.split('.');
   const ext = parts.pop() as string;
   const base = parts.join('.');
-  const dir = path.join(STORAGE_DIR, location);
-  await fs.mkdir(dir, { recursive: true });
-  let newName = safe, c = 1;
-  while (await fs.stat(path.join(dir, newName)).then(() => true, () => false)) newName = `${base}-${c++}.${ext}`;
-  await fs.writeFile(path.join(dir, newName), file.buffer);
+  const newName = await uniqueName(location, base, ext);
+  await putFile(location.replace(/\/+$/, '') + '/' + newName, file.buffer);
   return { filename: '/' + location + newName };
 }
 
@@ -129,11 +126,10 @@ export default async function (ctx: Ctx): Promise<Page> {
           const doc = makeDocument(fileType, vacancy, iv);
           const buf = await htmlToPdf(doc.html);
           const loc = `docs/jobs/${id}/`;
-          await fs.mkdir(path.join(STORAGE_DIR, loc), { recursive: true });
-          await fs.writeFile(path.join(STORAGE_DIR, loc, doc.name), buf);
+          await putFile(loc + doc.name, buf);
           await sendmail(iv.email, `${fileType.charAt(0).toUpperCase() + fileType.slice(1)} for your job at FreshPet`, {
             text: `<p>Hello ${esc(iv.name)},</p><p>Your ${fileType} is attached to this mail.</p><p>Regards,<br>Human Resources<br>${env.SITE_NAME}</p>`,
-            attachment: { path: path.join(STORAGE_DIR, loc) + path.sep, name: doc.name },
+            attachment: { name: doc.name, buffer: buf },
           }, 'hr@freshpet.in,Freshpet HR');
           r = { message: { type: 'snackbar', content: `${fileType.charAt(0).toUpperCase() + fileType.slice(1)} sent at ${iv.email}` } };
         } catch (e: any) { r = e instanceof PdfUnavailable ? msgWarn(e) : msgWarn(e); }

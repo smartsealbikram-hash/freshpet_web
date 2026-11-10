@@ -1,4 +1,4 @@
-import fs from 'fs/promises';
+import { deleteFolderFiles } from '@/lib/storage';
 import path from 'path';
 import type { NextRequest } from 'next/server';
 import { Ctx } from '@/lib/ctx';
@@ -60,9 +60,7 @@ export async function GET(req: NextRequest) {
   }
 
   if (hour === 3) {
-    const dir = path.join(STORAGE_DIR, 'docs/exports');
-    await fs.mkdir(dir, { recursive: true });
-    for (const f of await fs.readdir(dir)) await fs.rm(path.join(dir, f), { force: true, recursive: false }).catch(() => {});
+    await deleteFolderFiles('docs/exports');
     log.push('exports cleaned');
   }
   return Response.json({ ok: true, hour, log });

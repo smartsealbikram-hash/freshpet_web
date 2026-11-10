@@ -5,6 +5,7 @@ import { env } from './env';
 import { pageToTable as p2t, pageToPermission as p2p, staffPageToPermission as sp2p } from './config';
 import { date, strtotime, time } from './php';
 import { Raw } from './html';
+import { fileExists, putFile } from './storage';
 
 export const STORAGE_DIR = path.join(process.cwd(), 'storage');
 
@@ -208,7 +209,7 @@ export async function sendmail(ctx_or_recipients: any, subjectOrRecipients?: any
   transporter ??= nodemailer.createTransport({ host: env.SMTP_HOST, port: env.SMTP_PORT, secure: env.SMTP_PORT === 465, auth: env.SMTP_USER ? { user: env.SMTP_USER, pass: env.SMTP_PASS } : undefined });
   try {
     for (const to of list)
-      await transporter.sendMail({ from: from ? (from.includes(',') ? `"${from.split(',')[1]}" <${from.split(',')[0]}>` : from) : `"${env.SITE_NAME}" <${env.MAILFROM}>`, to, subject: `${subject} - ${env.SITE_NAME}`, html: body, attachments: content.attachment ? [{ filename: content.attachment.name, path: content.attachment.path + content.attachment.name }] : undefined });
+      await transporter.sendMail({ from: from ? (from.includes(',') ? `"${from.split(',')[1]}" <${from.split(',')[0]}>` : from) : `"${env.SITE_NAME}" <${env.MAILFROM}>`, to, subject: `${subject} - ${env.SITE_NAME}`, html: body, attachments: content.attachment ? [content.attachment.buffer ? { filename: content.attachment.name, content: content.attachment.buffer } : { filename: content.attachment.name, path: content.attachment.path + content.attachment.name }] : undefined });
     return true;
   } catch (e: any) {
     console.error('Failed to send mail:', e?.message);
@@ -400,14 +401,11 @@ export async function uploadImage(ctx: Ctx, files: UploadedFile[], saveLocation:
       ctx.flash('error', 'Image is not in a valid format. Upload jpg, webp, png or gif files only');
       return false;
     }
-    const abs = path.join(STORAGE_DIR, dir);
-    await fs.mkdir(abs, { recursive: true });
     if (!overwrite) {
       let c = 1;
       const base = safe;
-      while (await fs.stat(path.join(abs, `${safe}.${ext}`)).then(() => true, () => false)) safe = `${base}-${c++}`;
+      while (await fileExists(`${dir}${safe}.${ext}`)) safe = `${base}-${c++}`;
     }
-    const out = path.join(abs, `${safe}.${ext}`);
     let buf = f.buffer;
     try {
       if (f.size >= maxSize) {
@@ -425,7 +423,7 @@ export async function uploadImage(ctx: Ctx, files: UploadedFile[], saveLocation:
         }
       }
     } catch (e: any) { console.error('image optimisation failed, saving original:', e?.message); buf = f.buffer; }
-    await fs.writeFile(out, buf);
+    await putFile(`${dir}${safe}.${ext}`, buf); // after resizing/compression the final file is stored (Cloudinary when configured)
     vault.push({ path: dir + `${safe}.${ext}`, filename: `${safe}.${ext}` });
   }
   return vault;
@@ -433,9 +431,7 @@ export async function uploadImage(ctx: Ctx, files: UploadedFile[], saveLocation:
 
 /** Save an arbitrary (non-image) upload e.g. PDFs/docs under ./storage */
 export async function saveFile(file: UploadedFile, dir: string, filename: string) {
-  const abs = path.join(STORAGE_DIR, dir);
-  await fs.mkdir(abs, { recursive: true });
-  await fs.writeFile(path.join(abs, filename), file.buffer);
+  await putFile(`${dir.replace(/\/+$/, '')}/${filename}`, file.buffer);
   return path.join(dir, filename);
 }
 

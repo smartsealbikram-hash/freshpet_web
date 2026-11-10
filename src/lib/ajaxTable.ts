@@ -1,5 +1,4 @@
-import fs from 'fs/promises';
-import path from 'path';
+import { deleteFolderFiles, putFile } from './storage';
 import { Ctx } from './ctx';
 import { hasAccess } from './functions';
 import { STORAGE_DIR } from './functions';
@@ -86,10 +85,8 @@ export async function ajaxTable(ctx: Ctx, opts: { columns: AjaxCol[]; primaryTab
 
 /** Write an export CSV under storage/docs/exports and return its public link. */
 export async function writeExport(filename: string, lines: any[][]) {
-  const dir = path.join(STORAGE_DIR, 'docs/exports');
-  await fs.mkdir(dir, { recursive: true });
-  for (const f of await fs.readdir(dir)) await fs.rm(path.join(dir, f), { force: true }).catch(() => {});
+  await deleteFolderFiles('docs/exports');
   const cell = (v: any) => { const s = v === null || v === undefined ? '' : String(v); return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
-  await fs.writeFile(path.join(dir, filename), '﻿' + lines.map((l) => l.map(cell).join(',')).join('\n') + '\n');
+  await putFile(`docs/exports/${filename}`, Buffer.from('﻿' + lines.map((l) => l.map(cell).join(',')).join('\n') + '\n', 'utf8'));
   return { filename, link: `docs/exports/${filename}` };
 }

@@ -2,7 +2,8 @@ import fs from 'fs/promises';
 import path from 'path';
 import { Ctx } from './ctx';
 import { esc } from './html';
-import { STORAGE_DIR, sentenceCase } from './functions';
+import { sentenceCase } from './functions';
+import { getFile } from './storage';
 import { number_format } from './php';
 
 const rnd = () => Math.random();
@@ -12,7 +13,8 @@ export async function signatureSrc(sig: string | null | undefined) {
   if (!sig) return '';
   if (sig.startsWith('data:')) return sig;
   try {
-    const buf = await fs.readFile(path.join(STORAGE_DIR, sig.replace(/^\//, '')));
+    const buf = await getFile(sig);
+    if (!buf) return '';
     return `data:image/png;base64,${buf.toString('base64')}`;
   } catch { return ''; }
 }

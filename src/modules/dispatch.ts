@@ -4,7 +4,8 @@ import { Ctx, Page, exit, jsonExit } from '@/lib/ctx';
 import { dispatchTimeline } from '@/lib/config';
 import { date, strtotime } from '@/lib/php';
 import { esc } from '@/lib/html';
-import { sanitize, STORAGE_DIR, toInt } from '@/lib/functions';
+import { sanitize, toInt } from '@/lib/functions';
+import { putFile } from '@/lib/storage';
 import { P, V, arr, halt, msgWarn, notFound } from '@/lib/h';
 import { coaHtml } from '@/lib/coa';
 import { htmlToPdf, pdfResponse } from '@/lib/pdf';
@@ -97,8 +98,7 @@ export default async function (ctx: Ctx): Promise<Page> {
             if (k.startsWith('preform_batch')) { const itemId = k.split('-')[1]; await db.update('dispatch_items', { preform_batch: v, resin_batch: post['resin_batch-' + itemId] }, 'id = ?', [itemId]); }
           if (String(post.signature).includes('data:image')) {
             const loc = `img/signatures/${ctx.userId}.png`;
-            await fs.mkdir(path.join(STORAGE_DIR, 'img/signatures'), { recursive: true });
-            await fs.writeFile(path.join(STORAGE_DIR, loc), Buffer.from(String(post.signature).split(',')[1], 'base64'));
+            await putFile(loc, Buffer.from(String(post.signature).split(',')[1], 'base64'));
             await db.update('users', { signature: loc }, 'id = ?', [ctx.userId]);
           }
           r = { action: 'refresh' };
@@ -106,9 +106,8 @@ export default async function (ctx: Ctx): Promise<Page> {
         if (checkpoint === 'quality_out') {
           const items = await db.selectAll('SELECT di.*, p.weight, p.type FROM dispatch_items di JOIN products p ON di.item_name = p.id WHERE dispatch = ? ORDER BY invoice_num', [id]);
           const u: any = await db.selectOne('SELECT signature FROM users WHERE id = ?', [S.user.id]);
-          await fs.mkdir(path.join(STORAGE_DIR, 'docs/coa'), { recursive: true });
           for (const product of items) {
-            try { await fs.writeFile(path.join(STORAGE_DIR, `docs/coa/COA-${product.invoice_num}.pdf`), await htmlToPdf(await coaHtml(ctx, dispatch, product, u?.signature))); }
+            try { await putFile(`docs/coa/COA-${product.invoice_num}.pdf`, await htmlToPdf(await coaHtml(ctx, dispatch, product, u?.signature))); }
             catch (e: any) { console.error('COA generation failed:', e.message); }
           }
         } else if (checkpoint === 'dispatched') { p.status = 2; r = { action: 'goback' }; }

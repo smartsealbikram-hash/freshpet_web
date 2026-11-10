@@ -31,7 +31,9 @@ The MongoDB database must already contain the Freshpet data (collections named a
 2. Add the environment variables from `.env.example` in Project Settings -> Environment Variables. At minimum: `MONGO_URL`, `MONGO_DB`, `SECRET_KEY`, `SITE_URL` (your Vercel domain), `PRODUCTION=1`, `SHOW_OTP=0`, plus the integration keys you use.
 3. In MongoDB Atlas -> Network Access, allow Vercel to connect (0.0.0.0/0, or Vercel's static IPs on a paid plan).
 
-Vercel limits: the filesystem is read-only/ephemeral, so uploaded files (`storage/`) and PDF generation with a local Chrome (`CHROME_PATH`) need external storage / a hosted Chromium to work there.
+File storage: set `CLOUDINARY_URL`. Every upload and generated file (photos, signatures, PDFs, letters, exports) is stored in Cloudinary as a private (authenticated) asset under the same path the database stores, and is served only to logged-in users through `/api/files`. Site logos are public. Without `CLOUDINARY_URL` the local `./storage` folder is used (development).
+
+Vercel limit: PDF generation needs a local Chrome (`CHROME_PATH`); a hosted Chromium is required for letters/COA/invoices on Vercel.
 
 In dev (`PRODUCTION=0`) OTP codes, push, mail and WhatsApp are logged to the server console instead of sent.
 Secrets (Firebase JSON, WhatsApp/MSG91 keys, DB password) are NOT copied from `vault/`; supply them via env vars.

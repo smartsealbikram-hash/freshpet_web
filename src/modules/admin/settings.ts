@@ -1,5 +1,5 @@
 import path from 'path';
-import fs from 'fs/promises';
+import { putFile } from '@/lib/storage';
 import { Ctx, Page, jsonExit } from '@/lib/ctx';
 import { hasAccess, sanitize } from '@/lib/functions';
 import { env } from '@/lib/env';
@@ -21,13 +21,12 @@ export default async function (ctx: Ctx): Promise<Page> {
 
   if (post.logos !== undefined) {
     const sharp = (await import('sharp')).default;
-    await fs.mkdir(LOGO_DIR, { recursive: true });
     for (const [field, cfg] of Object.entries(FILES)) {
       const f = ctx.files[field]?.[0];
       if (!f || !f.size) continue;
       const safe = cfg.fixed ?? f.name.toLowerCase().replace(/[^a-z0-9.-]+/g, '-');
       const out = await sharp(f.buffer).resize({ width: cfg.width, height: cfg.height, withoutEnlargement: true }).toBuffer();
-      await fs.writeFile(path.join(LOGO_DIR, safe), out);
+      await putFile(`img/logo/${safe}`, out, { public: true }); // logos are public (served on the login page)
       if (cfg.key) await db.update('settings', { _value: safe }, '_key = ?', [cfg.key]);
     }
     clearSettingsCache();

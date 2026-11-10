@@ -20,6 +20,7 @@
   },
   "dependencies": {
     "@simplewebauthn/server": "^14.1.0",
+    "cloudinary": "^2.11.0",
     "firebase-admin": "^14.5.0",
     "iron-session": "^9.0.1",
     "mongodb": "^6.22.0",

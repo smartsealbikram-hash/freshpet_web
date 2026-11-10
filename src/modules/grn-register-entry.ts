@@ -1,5 +1,5 @@
 import path from 'path';
-import fs from 'fs/promises';
+import { getFile, putFile } from '@/lib/storage';
 import { Ctx, Page, exit, jsonExit } from '@/lib/ctx';
 import { date, strtotime } from '@/lib/php';
 import { esc } from '@/lib/html';
@@ -45,8 +45,9 @@ export default async function (ctx: Ctx): Promise<Page> {
           if (!inv.freshpet_mentioned) {
             const parts = String(entry.invoice_pdf).split('/');
             const pdfName = parts.pop() as string;
+            const pdfBuf = await getFile(String(entry.invoice_pdf));
             for (const r of await db.selectAll('SELECT name, email FROM users WHERE status = 2 AND role = 11'))
-              await sendmail(r.email, 'Issue bill', { text: `Hello ${r.name}, a GRN invoice has been scanned in without FreshPet being mentioned on it. The invoice has been attached below. Please issue an invoice against FreshPet`, attachment: { name: pdfName, path: path.join(STORAGE_DIR, parts.join('/')) + path.sep } }, 'operations@freshpet.in,Operations');
+              await sendmail(r.email, 'Issue bill', { text: `Hello ${r.name}, a GRN invoice has been scanned in without FreshPet being mentioned on it. The invoice has been attached below. Please issue an invoice against FreshPet`, attachment: pdfBuf ? { name: pdfName, buffer: pdfBuf } : { name: pdfName, path: path.join(STORAGE_DIR, parts.join('/')) + path.sep } }, 'operations@freshpet.in,Operations');
           }
         }
         await db.update('receiving_notes', p, 'id = ?', [id]);
@@ -92,8 +93,7 @@ export default async function (ctx: Ctx): Promise<Page> {
       id = await db.insert('receiving_notes', { ai_job_id: job.job_id, location: loc, type: 'grn', register_id: registerId, invoice_pdf: `/${pdfLocation}${pdfName}`, received_by: S.user.id, date_received: now });
       const pages = ctx.files.invoice_photos.map((f) => `<div class="page"><img src="data:${f.type};base64,${f.buffer.toString('base64')}"></div>`).join('');
       const html = `<!DOCTYPE html><html lang="en"><head><title></title><meta charset="utf-8"><style>body{margin:0;padding:0}@page{margin:0}.page{page-break-after:always;text-align:center}.page:last-child{page-break-after:auto}img{max-width:100%;max-height:100%}</style></head><body>${pages}</body></html>`;
-      await fs.mkdir(path.join(STORAGE_DIR, pdfLocation), { recursive: true });
-      await fs.writeFile(path.join(STORAGE_DIR, pdfLocation, pdfName), await htmlToPdf(html));
+      await putFile(pdfLocation + pdfName, await htmlToPdf(html));
       r = { redirect: `grn-register-entry?id=${id}` };
     } catch (e: any) { r = { message: { type: 'error', content: e.message } }; }
     return jsonExit(r);

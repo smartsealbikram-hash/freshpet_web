@@ -1,5 +1,5 @@
 import path from 'path';
-import fs from 'fs/promises';
+import { putFile, uniqueName } from '@/lib/storage';
 import { Ctx, jsonExit } from '@/lib/ctx';
 import { env } from '@/lib/env';
 import { STORAGE_DIR, uploadImage } from '@/lib/functions';
@@ -28,11 +28,8 @@ export default async function (ctx: Ctx) {
         const clean = v.name.toLowerCase().replace(/[^a-zA-Z0-9.-]+/g, '-');
         const parts = clean.split('.'); const ext = parts.pop(); const base = parts.join('.');
         if (ext === 'mp4') {
-          const dir = path.join(STORAGE_DIR, 'vid/media', base[0] + '/');
-          await fs.mkdir(dir, { recursive: true });
-          let name = clean, c = 1;
-          while (await fs.stat(path.join(dir, name)).then(() => true, () => false)) name = `${base}-${c++}.${ext}`;
-          await fs.writeFile(path.join(dir, name), v.buffer);
+          const name = await uniqueName(`vid/media/${base[0]}`, base, ext as string);
+          await putFile(`vid/media/${base[0]}/${name}`, v.buffer);
           r.url = `${env.SITE_URL}/vid/media/${name[0]}/${name}`;
         } else r.error = 'Invalid format. Only MP4 videos are supported.';
       } else r.error = 'Please upload a video or provide a YouTube URL';
