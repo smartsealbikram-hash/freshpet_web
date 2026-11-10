@@ -1,0 +1,34 @@
+{
+  "name": "freshpet",
+  "version": "2.2.2",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "db:import": "node scripts/import-sql.mjs",
+    "db:mongo": "node scripts/migrate-to-mongo.mjs",
+    "db:verify": "tsx scripts/diff-sql.mts tables"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.6",
+    "@types/nodemailer": "^8.0.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "tsx": "^4.23.15",
+    "typescript": "5.9"
+  },
+  "dependencies": {
+    "@simplewebauthn/server": "^14.1.0",
+    "firebase-admin": "^14.5.0",
+    "iron-session": "^9.0.1",
+    "mongodb": "^6.22.0",
+    "mysql2": "^3.24.6",
+    "next": "^15.5.29",
+    "nodemailer": "^10.3.1",
+    "puppeteer-core": "^25.16.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "sharp": "^0.35.5"
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "start_url": "https://app.freshpet.in?utm_source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#FFF",
+  "theme_color": "#1d6586",
+  "icons": [
+    {
+      "src": "./img/logo/favicon-192.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "any"
+    },
+    {
+      "src": "./img/logo/favicon-192-mask.png",
+      "type": "image/png",
+      "sizes": "192x192",
+      "purpose": "maskable"
+    },
+    {
+      "src": "./img/logo/favicon-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "any"
+    },
+    {
+      "src": "./img/logo/favicon-512-mask.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "maskable"
+    }
+  ],
+  "short_name": "Freshpet",
+  "name": "Freshpet",
+  "shortcuts": [],
+  "categories": ["business", "productivity"]
+}

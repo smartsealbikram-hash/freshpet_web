@@ -1,0 +1,22 @@
+# dependencies / build
+node_modules
+.next
+.vercel
+tsconfig.tsbuildinfo
+next-env.d.ts
+
+# secrets and local config
+.env
+.env.*
+!.env.example
+
+# data, uploads and local tooling that must not be published
+storage/
+database/
+scripts/
+.mysql/
+*.sql
+*.php
+*.log
+.sql-capture*
+.smoke*

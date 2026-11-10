@@ -1,0 +1,5 @@
+{
+	"metaTitle": "You're Offline - FreshPet",
+	"metaDescription": "",
+	"content": "<section><div class=\"container center\"><span class=\"material-icons\" style=\"font-size: 5rem; margin-top: 4rem; opacity: 0.6;\">wifi_off</span><h3>Looks like you're offline. Try again when network returns.</h3><button type=\"button\" class=\"btn outline\" onclick=\"window.location.reload(true)\">Retry Connection</button></div></section></main>"
+}

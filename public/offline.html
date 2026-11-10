@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <title>You're Offline - FreshPet</title>
+  <meta name="robots" content="noindex">
+	<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta name="theme-color" media="(prefers-color-scheme: light)" content="#89c8ed">
+	<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#d3e0e7">
+
+	<base href="/">
+	<link rel="icon" href="img/logo/favicon-32.png" sizes="any">
+	<link rel="apple-touch-icon" href="img/logo/favicon-180.png">
+
+	<link rel="stylesheet" type="text/css" href="css/glowingstone-one.min.css" id="theme-css"  data-theme="light">
+	<link rel="stylesheet" type="text/css" href="css/glowingstone-two.min.css" id="theme-css" data-theme="light">
+	<link rel="preload" href="fonts/MaterialSymbols.woff2" as="font" type="font/woff2" crossorigin>
+</head>
+
+<body>
+	<header class="no-padding">
+		<nav class="navigation" data-subscribed="0">
+			<ul class="desktop-nav">
+				<li class="logo"><a href="#"><img src="img/logo/logo.png"></a></li>
+			</ul>
+			<ul class="mobile-nav">
+				<li class="logo"><a href="#"><img src="img/logo/logo.png"></a></li>
+			</ul>
+		</nav>
+	</header>
+
+	<main>
+		<section>
+			<div class="container center">
+				<span class="material-icons" style="font-size: 5rem; margin-top: 4rem; opacity: 0.6;">wifi_off</span>
+				<h3>Looks like you're offline. Try again when network returns.</h3>
+				<button type="button" class="btn outline" onclick="window.location.reload(true)">Retry Connection</button>
+			</div>
+		</section>
+	</main>
+
+<script src="js/glowingstone.min.js"></script>
+</body>
+</html>
