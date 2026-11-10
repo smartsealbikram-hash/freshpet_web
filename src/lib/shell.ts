@@ -176,7 +176,7 @@ export function renderAdminShell(ctx: Ctx, page: Page): string {
 	<title>${esc(page.metaTitle ?? '')}</title>
 	<meta name="description" content="">
 	<meta name="viewport" content="width=device-width, initial-scale=1.0">
-	<link rel="manifest" href="../manifest.webmanifest">
+	<link rel="manifest" href="${env.SITE_URL}/manifest.webmanifest">
 	<meta name="theme-color" media="(prefers-color-scheme: light)" content="#1d6586">
 	<meta name="theme-color" media="(prefers-color-scheme: dark)" content="#8fcef3">
 	${themeLinks(ctx, '/admin/css/style.css')}
