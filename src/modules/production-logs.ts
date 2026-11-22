@@ -4,6 +4,7 @@ import { date, number_format, strtotime } from '@/lib/php';
 import { esc } from '@/lib/html';
 import { getApprovals, sanitize, toInt } from '@/lib/functions';
 import { P, SITE_URL, V, halt, msgWarn, notFound } from '@/lib/h';
+import { modifiedLogIds, reviewWindow } from '@/lib/logAudit';
 
 export default async function (ctx: Ctx): Promise<Page> {
   const { db, post, S, now } = ctx;
@@ -27,6 +28,7 @@ export default async function (ctx: Ctx): Promise<Page> {
     tp += Number(l.total_pcs); tprod += Number(l.production); tpacks += Number(l.good_pack); trej += Number(l.rejection) + Number(l.lumps);
     run += Number(l.running_hrs); mold += Number(l.mold_change_time); noplan += Number(l.no_plan_time); brk += Number(l.breakdown_time);
   }
+  const modified = await modifiedLogIds(logs.map((l: any) => Number(l.id)));
   const fmt = (x: any) => date('d M Y h:i A', strtotime(x) as number);
   let body = '';
   if (tp)
@@ -63,13 +65,23 @@ export default async function (ctx: Ctx): Promise<Page> {
       body += `</dl>${params}${maint}`;
       const ap = await getApprovals(ctx, 'production_logs', l.id, 1);
       if (ap.approved > 0) body += ap.html;
+      else {
+        // 24 hour manager review window + "corrected by manager" flag
+        const rw = reviewWindow(l.date_added);
+        if (rw) body += rw.overdue
+          ? `<p class="error-color"><span class="material-icons">schedule</span> Review window ended ${rw.deadlineText} — auto-approval pending</p>`
+          : `<p class="warning-color"><span class="material-icons">schedule</span> Awaiting manager review — ${rw.hoursLeft} hr left, then auto-approved (by ${rw.deadlineText})</p>`;
+      }
+      if (modified.has(Number(l.id))) body += `<p class="neutral-color-1"><span class="material-icons">history</span> Corrected by manager — <a href="production-log?id=${l.id}">see change history</a></p>`;
       body += '</div>';
       if (l.lot_status < 6 && ap.approved < ap.totalApprovals) {
         body += '<div class="action">';
-        if (l.verified_by === null) {
+        // Managers (level 3) get every submitted log straight away, whether or not the shift log was verified first.
+        if (level === 3) body += `<a href="production-log?id=${l.id}" class="btn filled">View &amp; Approve</a>`;
+        else if (l.verified_by === null) {
           if (S.user.role == 13 && l.created_by != S.user.id) body += `<button type="submit" class="btn filled verify-log" data-log="${l.id}">Verify</button>`;
           else if (l.created_by == S.user.id) body += `<a href="machine-parameters?log=${l.id}" class="btn tonal">Add Parameters</a><a href="production-log?id=${l.id}" class="btn outline">Edit Log</a>`;
-        } else if (level === 3) body += `<a href="production-log?id=${l.id}" class="btn filled">View &amp; Approve</a>`;
+        }
         body += '</div>';
       }
       body += '</div>';

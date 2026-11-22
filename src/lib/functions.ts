@@ -296,7 +296,7 @@ export function approvalEntityTable(page: string): [string, string] {
 
 export async function getApprovals(ctx: Ctx, entityType: string, entityId: number, num: number, department: number | null = null, width = 'normal') {
   const res = { totalApprovals: num, approved: 0, rejected: 0, html: '' };
-  const rows = await ctx.db.selectAll('SELECT a.*, u.name FROM approvals a JOIN users u ON a.user = u.id WHERE entity_type = ? AND entity_id = ?', [entityType, entityId]);
+  const rows = await ctx.db.selectAll('SELECT a.*, u.name FROM approvals a LEFT JOIN users u ON a.user = u.id WHERE entity_type = ? AND entity_id = ?', [entityType, entityId]);
   for (const r of rows) r.decision ? res.approved++ : res.rejected++;
 
   let canApprove = false;
@@ -317,7 +317,7 @@ export async function getApprovals(ctx: Ctx, entityType: string, entityId: numbe
       if (a.user == ctx.S.user.id) canApprove = false;
       html += a.decision ? '<span class="material-icons font2 success-color">check_circle</span><h4>Approved' : '<span class="material-icons font2 error-color">cancel</span><h4>Rejected';
       if (a.remarks) html += ` <button type="button" class="btn icon small"><span class="material-icons tooltip" title="${esc(a.remarks)}">message</span></button>`;
-      html += `</h4><p class="neutral-color-1">By ${esc(a.name)} • ${date('d M Y', strtotime(a.date_decided) as number)}</p>`;
+      html += `</h4><p class="neutral-color-1">By ${esc(a.name ?? (a.user == 0 ? 'System (auto)' : ''))} • ${date('d M Y', strtotime(a.date_decided) as number)}</p>`;
     } else {
       html += '<span class="material-icons font2 neutral-color-3">hourglass_top</span><h4 class="neutral-color-3">Waiting for Approval</h4>';
       if (canApprove) {

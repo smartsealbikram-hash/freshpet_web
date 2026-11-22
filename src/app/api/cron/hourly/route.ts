@@ -6,6 +6,7 @@ import { db } from '@/lib/db';
 import { env } from '@/lib/env';
 import { date, strtotime, time } from '@/lib/php';
 import { sendNotification, STORAGE_DIR } from '@/lib/functions';
+import { REVIEW_HOURS } from '@/lib/logAudit';
 
 /**
  * Port of vault/cron-hourly.php (schedule at minute 15 of every hour):
@@ -57,6 +58,21 @@ export async function GET(req: NextRequest) {
         log.push('missing-log notification sent');
       }
     }
+  }
+
+  // Manager review window: a submitted shift log nobody (approve OR reject) decided on within REVIEW_HOURS is approved automatically.
+  // Only logs of the last 3 days are looked at, so history from before this rule existed is never touched and a missed cron run catches up.
+  const pendingLogs = await db.selectAll('SELECT id FROM production_logs WHERE date_added IS NOT NULL AND date_added > ? AND date_added <= ?', [date('Y-m-d H:i:s', time() - 72 * 3600), date('Y-m-d H:i:s', time() - REVIEW_HOURS * 3600)]);
+  const auto: any[] = [];
+  for (const l of pendingLogs) {
+    if (await db.selectOne('SELECT id FROM approvals WHERE entity_type = ? AND entity_id = ?', ['production_logs', l.id])) continue;
+    await db.insert('approvals', { entity_type: 'production_logs', entity_id: l.id, user: 0, decision: 1, remarks: `Auto-approved: no manager decision within ${REVIEW_HOURS} hours`, date_decided: ctx.now ?? date('Y-m-d H:i:s') });
+    auto.push(l);
+  }
+  if (auto.length) {
+    log.push(`auto-approved production log(s): ${auto.map((l) => l.id).join(', ')}`);
+    const devs = await db.selectAll("SELECT tag FROM users u JOIN staff_permissions sp ON u.role = sp.role AND sp.type = 'production_logs' LEFT JOIN user_devices ud ON u.id = ud.user WHERE u.status = 2 AND access_level = 3 AND sp.access = 3 AND tag IS NOT NULL");
+    if (devs.length) await sendNotification(ctx, devs.map((d: any) => d.tag), `${auto.length} shift log${auto.length > 1 ? 's were' : ' was'} auto-approved`, `No decision was made within ${REVIEW_HOURS} hours.`, env.SITE_URL + (auto.length === 1 ? `/production-log?id=${auto[0].id}` : '/production-lots'));
   }
 
   if (hour === 3) {
