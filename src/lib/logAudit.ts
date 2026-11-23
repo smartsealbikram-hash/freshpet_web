@@ -13,6 +13,8 @@ export const REVIEW_HOURS = 24;
 const MONGO = env.DB_ENGINE !== 'mysql';
 const COLL = 'production_log_changes';
 
+export const FIELD_LABELS: Record<string, string> = { total_pcs: 'Total pcs', rejection: 'Rejection (kg)', lumps: 'Lumps (kg)', no_plan_time: 'No plan time (hr)', breakdown_reason: 'Breakdown reason', production: 'Production (kg)' };
+
 export interface LogChange { log_id: number; changed_by: number; changed_by_name: string; field: string; old_value: string | null; new_value: string | null; reason: string; changed_at: string }
 
 let ready: Promise<void> | null = null;
@@ -40,14 +42,14 @@ const same = (a: any, b: any) => {
   return Number.isFinite(na) && Number.isFinite(nb) ? Math.abs(na - nb) < 0.005 : String(a) === String(b);
 };
 
-/** Store one row per field that really changed. Returns the number of changes recorded. */
-export async function recordLogChanges(logId: number, user: { id: number; name: string }, before: Record<string, any>, after: Record<string, any>, reason: string, now: string): Promise<number> {
+/** Store one row per field that really changed. Returns the rows recorded. */
+export async function recordLogChanges(logId: number, user: { id: number; name: string }, before: Record<string, any>, after: Record<string, any>, reason: string, now: string): Promise<LogChange[]> {
   const rows: LogChange[] = [];
   for (const field of Object.keys(after)) {
     if (same(before[field], after[field])) continue;
     rows.push({ log_id: logId, changed_by: user.id, changed_by_name: String(user.name ?? '').slice(0, 100), field, old_value: str(before[field])?.slice(0, 255) ?? null, new_value: str(after[field])?.slice(0, 255) ?? null, reason: reason.slice(0, 500), changed_at: now });
   }
-  if (!rows.length) return 0;
+  if (!rows.length) return [];
   await ensure();
   if (MONGO) {
     const d = await getDb();
@@ -55,7 +57,7 @@ export async function recordLogChanges(logId: number, user: { id: number; name: 
   } else {
     for (const r of rows) await db.insert(COLL, r as any);
   }
-  return rows.length;
+  return rows;
 }
 
 export async function getLogChanges(logId: number): Promise<LogChange[]> {
@@ -86,4 +88,32 @@ export function reviewWindow(dateAdded: string | null) {
   const deadline = start + REVIEW_HOURS * 3600;
   const left = deadline - time();
   return { deadline, deadlineText: date('d M Y h:i A', deadline), overdue: left < 0, hoursLeft: Math.max(0, Math.ceil(left / 3600)), hoursOver: Math.max(0, Math.floor(-left / 3600)) };
+}
+
+const escHtml = (v: any) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+/**
+ * Drop a short alert into the FAI chat of every admin (management department users + ids 11 and 22 — the people who see FAI) saying what the
+ * manager changed. It only writes rows into chats / chat_messages, the same place FAI's own reports land, so the AI connection is not involved.
+ * Best effort: a failure here must never block the correction itself.
+ */
+export async function alertAdminsViaFai(info: { logId: number; lot: string; shift: string; shiftDate: string; incharge: string; manager: string; reason: string; changes: LogChange[]; now: string }) {
+  try {
+    const admins = await db.selectAll('SELECT u.id FROM users u LEFT JOIN staff_roles sr ON u.role = sr.id WHERE u.status = 2 AND (sr.department = 10 OR u.id = 11 OR u.id = 22)');
+    if (!admins.length) return;
+    const items = info.changes.map((c) => `  <li>${escHtml(FIELD_LABELS[c.field] ?? c.field)}: ${escHtml(c.old_value ?? '—')} → ${escHtml(c.new_value ?? '—')}</li>`).join('\n');
+    const message = `### Production Log Corrected
+
+<h2>${escHtml(info.lot)}, ${escHtml(info.shift)} (${escHtml(info.shiftDate)})</h2>
+<ul class="default">
+  <li>Entered by ${escHtml(info.incharge || 'shift incharge')}, changed by ${escHtml(info.manager)}</li>
+${items}
+  <li>Reason: ${escHtml(info.reason)}</li>
+</ul>`;
+    for (const a of admins) {
+      let chat: any = await db.selectOne('SELECT id FROM chats WHERE user_1 = 0 AND user_2 = ?', [a.id]);
+      const chatId = chat ? chat.id : await db.insert('chats', { user_1: 0, user_2: a.id });
+      await db.insert('chat_messages', { chat: chatId, sender: 0, is_read: 0, message, date_sent: info.now });
+    }
+  } catch (e: any) { console.error('FAI alert failed:', e?.message); }
 }

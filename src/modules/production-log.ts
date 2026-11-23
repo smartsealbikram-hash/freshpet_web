@@ -3,9 +3,7 @@ import { date, strtotime } from '@/lib/php';
 import { esc } from '@/lib/html';
 import { getApprovals, sanitize, sendNotification, toInt, uploadImage } from '@/lib/functions';
 import { P, SITE_URL, V, halt, msgWarn, notFound } from '@/lib/h';
-import { REVIEW_HOURS, getLogChanges, recordLogChanges, reviewWindow } from '@/lib/logAudit';
-
-const FIELD_LABELS: Record<string, string> = { total_pcs: 'Total pcs', rejection: 'Rejection (kg)', lumps: 'Lumps (kg)', no_plan_time: 'No plan time (hr)', breakdown_reason: 'Breakdown reason', production: 'Production (kg)' };
+import { FIELD_LABELS, REVIEW_HOURS, alertAdminsViaFai, getLogChanges, recordLogChanges, reviewWindow } from '@/lib/logAudit';
 
 /** Tell the production managers (production_logs access level 3) that a shift log is waiting for review. Never blocks the save. */
 async function notifyManagers(ctx: Ctx, logId: number, lot: string, by: string) {
@@ -70,8 +68,10 @@ export default async function (ctx: Ctx): Promise<Page> {
     let r: any = {};
     try {
       // audit first: a correction must never reach the log without a record of it
-      if (isManager) await recordLogChanges(id, { id: Number(ctx.userId), name: S.user.name }, log, { total_pcs: p.total_pcs, rejection: p.rejection, lumps: p.lumps, no_plan_time: p.no_plan_time, breakdown_reason: p.breakdown_reason, production: Math.round(p.production * 100) / 100 }, reason, now);
+      let made: any[] = [];
+      if (isManager) made = await recordLogChanges(id, { id: Number(ctx.userId), name: S.user.name }, log, { total_pcs: p.total_pcs, rejection: p.rejection, lumps: p.lumps, no_plan_time: p.no_plan_time, breakdown_reason: p.breakdown_reason, production: Math.round(p.production * 100) / 100 }, reason, now);
       await db.update('production_logs', p, 'id = ?', [id]);
+      if (made.length) await alertAdminsViaFai({ logId: id, lot: log.lot_id, shift: log.shift, shiftDate: log.shift_date, incharge: log.created_by_name, manager: S.user.name, reason, changes: made, now });
       if (firstSubmit) await notifyManagers(ctx, id, log.lot_id, S.user.name);
       for (const [key, value] of isManager ? [] : Object.entries(post)) {
         const m = key.match(/maintenance-(\d+)-status/);
