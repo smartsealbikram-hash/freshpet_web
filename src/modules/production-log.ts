@@ -13,6 +13,28 @@ async function notifyManagers(ctx: Ctx, logId: number, lot: string, by: string) 
   } catch (e: any) { console.error('manager notification failed:', e?.message); }
 }
 
+/** Change history with timestamps (empty when a manager never corrected the log) */
+async function historyCard(logId: number) {
+  const changes = await getLogChanges(logId);
+  if (!changes.length) return '';
+  return `<div class="card mb1"><div class="content"><h3>Change history</h3><p class="neutral-color-1"><small>Corrections made after the shift incharge submitted this log.</small></p>
+      ${changes.map((c) => `<div class="mb1"><strong>${esc(FIELD_LABELS[c.field] ?? c.field)}</strong>: <span class="error-color">${esc(c.old_value ?? '—')}</span> → <span class="success-color">${esc(c.new_value ?? '—')}</span><br>
+      <small>${esc(c.changed_by_name)} • ${date('d M Y h:i A', strtotime(c.changed_at) as number)}${c.reason ? ` • “${esc(c.reason)}”` : ''}</small></div>`).join('')}</div></div>`;
+}
+
+/** An approved log can no longer be edited, but its values, approval and change history stay readable. */
+async function lockedView(log: any, id: number, approvalsHtml: string): Promise<Page> {
+  const rows: [string, any, string?][] = [['Total pcs', log.total_pcs], ['Good packs', log.good_pack], ['Production', log.production, 'kg'], ['Rejection', log.rejection, 'kg'], ['Lumps', log.lumps, 'kg'],
+    ['Running hours', log.running_hrs, 'hr'], ['No plan time', log.no_plan_time, 'hr'], ['Breakdown time', log.breakdown_time, 'hr'], ['Breakdown reason', log.breakdown_reason]];
+  return {
+    metaTitle: `Production Log ${id}`, pageTitle: `Production Log ${id}`, metaDescription: '', subTitle: `${date('d M', strtotime(log.shift_date) as number)} • ${esc(log.shift)}`,
+    content: `<section><div class="container"><div class="row center-aligned"><div class="col xs12 s10 m8">
+	<div class="text-banner success mb1"><span class="material-icons">lock</span><p>This log is approved and locked. You can view it, but it can not be edited.</p></div>
+	<div class="card mb1"><div class="content"><dl class="horizontal">${rows.map(([label, v, unit]) => `<dt>${label}</dt><dd>${v === null || v === undefined || v === '' ? '—' : esc(v) + (unit ?? '')}</dd>`).join('')}</dl></div></div>
+	${approvalsHtml}${await historyCard(id)}</div></div></div></section>`,
+  };
+}
+
 export default async function (ctx: Ctx): Promise<Page> {
   const { db, post, S, now } = ctx;
   if (!ctx.isLoggedIn) ctx.account.logout();
@@ -22,9 +44,12 @@ export default async function (ctx: Ctx): Promise<Page> {
   const id = toInt(ctx.get.id);
   const log: any = await db.selectOne('SELECT pl.*, lot_id, date_mould_changed, date_started, box_size, weight, cycle_time, cavities FROM production_logs pl JOIN production_instances pi ON pl.instance_id = pi.id JOIN products p ON pi.product = p.id WHERE pl.id = ?', [id]);
   if (!log) notFound();
-  if (Number(log.cycle_time) === 0) halt('Cycle time must be added to product to add/edit this log.');
   const approvals = await getApprovals(ctx, 'production_logs', id, 1);
-  if (approvals.approved > 0) halt('Log is locked. Editing is not allowed anymore.');
+  if (approvals.approved > 0) {
+    if (post.total_pcs !== undefined) halt('Log is locked. Editing is not allowed anymore.');
+    return lockedView(log, id, approvals.html);
+  }
+  if (Number(log.cycle_time) === 0) halt('Cycle time must be added to product to add/edit this log.');
 
   const shots = (60 / log.cycle_time) * 60;
   const expectedPerHr = Math.round(((shots * log.cavities * log.weight) / 1000) * 100) / 100;
@@ -114,14 +139,7 @@ export default async function (ctx: Ctx): Promise<Page> {
       : `<div class="text-banner warning mb1"><span class="material-icons">schedule</span><p>Submitted ${by ? `by ${by} ` : ''}for manager review. Approve or correct it by ${rw.deadlineText} (${rw.hoursLeft} hr left) — after that it is approved automatically.</p></div>`;
   }
   const reasonField = isManager ? '<div class="input-field sidelabel"><textarea name="change_reason" rows="2" maxlength="500" required></textarea><label>Reason for change (required if you change any value)</label></div>' : '';
-  // change history with timestamps
-  const changes = await getLogChanges(id);
-  let history = '';
-  if (changes.length) {
-    history = `<div class="card mb1"><div class="content"><h3>Change history</h3><p class="neutral-color-1"><small>Corrections made after the shift incharge submitted this log.</small></p>
-      ${changes.map((c) => `<div class="mb1"><strong>${esc(FIELD_LABELS[c.field] ?? c.field)}</strong>: <span class="error-color">${esc(c.old_value ?? '—')}</span> → <span class="success-color">${esc(c.new_value ?? '—')}</span><br>
-      <small>${esc(c.changed_by_name)} • ${date('d M Y h:i A', strtotime(c.changed_at) as number)}${c.reason ? ` • “${esc(c.reason)}”` : ''}</small></div>`).join('')}</div></div>`;
-  }
+  const history = await historyCard(id);
   return {
     metaTitle: `Production Log ${id}`, pageTitle: `Production Log ${id}`, metaDescription: '', subTitle: `${date('d M', strtotime(log.shift_date) as number)} • ${esc(log.shift)}`,
     content: `<section><div class="container"><div class="row center-aligned"><form method="post" class="col xs12 s10 m8 ajax">
